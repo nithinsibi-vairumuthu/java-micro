@@ -5,39 +5,84 @@ pipeline {
         maven 'maven3'
     }
 
+    environment {
+        DOCKER_IMAGE = "nithinsibi/demo-app"
+    }
+
     stages {
 
         stage('Checkout') {
             steps {
-                git 'https://github.com/nithinsibi-vairumuthu/java-micro.git'
+                git branch: 'main',
+                    url: 'https://github.com/nithinsibi-vairumuthu/java-micro.git'
             }
         }
 
         stage('Build & Test') {
             steps {
-                sh 'mvn clean verify'
+                dir('demo-app') {
+                    sh 'mvn clean verify'
+                }
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('sonar') {
-                    sh '''
-                      mvn sonar:sonar \
-                      -Dsonar.projectKey=demo-app \
-                      -Dsonar.host.url=http://sonarqube:9000 \
-                      -Dsonar.login=$sonar-token
-                    '''
+                dir('demo-app') {
+                    withSonarQubeEnv('sonar') {
+                        withCredentials([string(
+                            credentialsId: 'sonarqube-token',
+                            variable: 'SONAR_TOKEN'
+                        )]) {
+                            sh """
+                              mvn clean verify \
+                              org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar \
+                              -Dsonar.projectKey=java-micro \
+                              -Dsonar.host.url=http://localhost:9005 \
+                              -Dsonar.login=$SONAR_TOKEN
+                            """
+                        }
+                    }
                 }
             }
         }
 
         stage('Quality Gate') {
             steps {
-                timeout(time: 2, unit: 'MINUTES') {
+                timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                dir('demo-app') {
+                    sh """
+                      docker build \
+                      -t $DOCKER_IMAGE:${BUILD_NUMBER} \
+                      -t $DOCKER_IMAGE:${GIT_COMMIT} .
+                    """
+                }
+            }
+        }
+
+        stage('Docker Push') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh """
+                      echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                      docker push $DOCKER_IMAGE:${BUILD_NUMBER}
+                      docker push $DOCKER_IMAGE:${GIT_COMMIT}
+                      docker logout
+                    """
                 }
             }
         }
     }
 }
+
