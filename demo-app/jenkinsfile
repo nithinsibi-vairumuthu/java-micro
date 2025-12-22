@@ -5,10 +5,6 @@ pipeline {
         maven 'maven3'
     }
 
-    environment {
-        DOCKER_IMAGE = "nithinsibi/demo-app"
-    }
-
     stages {
 
         stage('Checkout') {
@@ -26,61 +22,25 @@ pipeline {
             }
         }
 
-      stage('SonarQube Analysis') {
-         steps {
-            dir('demo-app') {
-              withSonarQubeEnv('sonar') {
-                 withCredentials([string(
-                    credentialsId: 'sonarqube-token',
-                    variable: 'SONAR_TOKEN'
-                )]) {
-                    sh """
-                      mvn sonar:sonar \
-                      -Dsonar.projectKey=java-micro \
-                      -Dsonar.host.url=http://localhost:9005 \
-                      -Dsonar.login=${SONAR_TOKEN}
-                    """
-                }
-            }
-        }
-    }
-}
-        stage('Quality Gate') {
-            steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
-                }
-            }
-        }
-
-        stage('Docker Build') {
+        stage('SonarQube Analysis') {
             steps {
                 dir('demo-app') {
-                    sh """
-                      docker build \
-                      -t $DOCKER_IMAGE:${BUILD_NUMBER} \
-                      -t $DOCKER_IMAGE:${GIT_COMMIT} .
-                    """
-                }
-            }
-        }
-
-        stage('Docker Push') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh """
-                      echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                      docker push $DOCKER_IMAGE:${BUILD_NUMBER}
-                      docker push $DOCKER_IMAGE:${GIT_COMMIT}
-                      docker logout
-                    """
+                    withSonarQubeEnv('sonar') {
+                        withCredentials([string(
+                            credentialsId: 'sonarqube-token',
+                            variable: 'SONAR_TOKEN'
+                        )]) {
+                            sh """
+                              mvn clean verify \
+                              org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar \
+                              -Dsonar.projectKey=java-micro \
+                              -Dsonar.host.url=http://localhost:9005 \
+                              -Dsonar.login=$SONAR_TOKEN
+                            """
+                        }
+                    }
                 }
             }
         }
     }
 }
-
