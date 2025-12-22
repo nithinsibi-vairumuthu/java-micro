@@ -75,5 +75,27 @@ pipeline {
                 }
             }
         }
-    }
+stage('Deploy to Kubernetes') {
+    steps {
+        dir('k8s') {
+            withCredentials([usernamePassword(
+                credentialsId: 'dockerhub-creds',
+                usernameVariable: 'DOCKER_USER',
+                passwordVariable: 'DOCKER_PASS'
+            )]) {
+                sh """
+                  # Replace BUILD_TAG placeholder with actual build number
+                  sed -i "s/BUILD_TAG/${BUILD_NUMBER}/g" demoapp-deployment.yml
+                  
+                  # Apply deployment to K8s
+                  kubectl apply -f demoapp-deployment.yml
+                  
+                  # Optional: rollout status check
+                  kubectl rollout status deployment/demo-app
+                """
+                }
+            }
+        }
+    } 
+  } 
 }
