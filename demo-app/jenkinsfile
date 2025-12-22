@@ -91,7 +91,7 @@ stage('Deploy to Kubernetes') {
                   kubectl apply -f demoapp-deployment.yml
                   
                   # Optional: rollout status check
-                  kubectl rollout status deployment/demo-app
+                  kubectl rollout status deployment/demo-app -n demo-app-ns
                 """
                 }
             }
