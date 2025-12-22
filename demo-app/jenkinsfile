@@ -35,8 +35,7 @@ pipeline {
                             variable: 'SONAR_TOKEN'
                         )]) {
                             sh """
-                              mvn clean verify \
-                              org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar \
+                              mvn sonar:sonar \                              
                               -Dsonar.projectKey=java-micro \
                               -Dsonar.host.url=http://localhost:9005 \
                               -Dsonar.login=$SONAR_TOKEN
