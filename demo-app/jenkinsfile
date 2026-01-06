@@ -7,13 +7,15 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "nithinsibi/demo-app"
+        IMAGE_TAG    = "${BUILD_NUMBER}"
+        GIT_BRANCH   = "main"
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                git branch: 'main',
+                git branch: "${GIT_BRANCH}",
                     url: 'https://github.com/nithinsibi-vairumuthu/java-micro.git'
             }
         }
@@ -35,11 +37,10 @@ pipeline {
                             variable: 'SONAR_TOKEN'
                         )]) {
                             sh """
-                              mvn clean verify \
-                              org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar \
+                            mvn sonar:sonar \
                               -Dsonar.projectKey=java-micro \
                               -Dsonar.host.url=http://localhost:9005 \
-                              -Dsonar.login=$SONAR_TOKEN
+                              -Dsonar.login=${SONAR_TOKEN}
                             """
                         }
                     }
@@ -51,8 +52,7 @@ pipeline {
             steps {
                 dir('demo-app') {
                     sh """
-                      docker build \
-                      -t $DOCKER_IMAGE:${BUILD_NUMBER} .
+                    docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} .
                     """
                 }
             }
@@ -66,9 +66,9 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     sh """
-                      echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                      docker push $DOCKER_IMAGE:${BUILD_NUMBER}
-                      docker logout
+                    echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+                    docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
+                    docker logout
                     """
                 }
             }
@@ -77,15 +77,15 @@ pipeline {
         stage('Update Manifest for Argo CD') {
             steps {
                 sh """
-                  sed -i "s|image: nithinsibi/demo-app:.*|image: nithinsibi/demo-app:${BUILD_NUMBER}|g" \
-                  demo-app/k8s/demoapp-deployment.yml
+                sed -i 's|image: nithinsibi/demo-app:.*|image: nithinsibi/demo-app:${IMAGE_TAG}|g' \
+                demo-app/k8s/demoapp-deployment.yml
 
-                  git config user.email "jenkins@ci.com"
-                  git config user.name "jenkins"
+                git config user.email "jenkins@ci.com"
+                git config user.name "jenkins"
 
-                  git add demo-app/k8s/demoapp-deployment.yml
-                  git commit -m "Update image to ${BUILD_NUMBER}"
-                  git push origin main
+                git add demo-app/k8s/demoapp-deployment.yml
+                git commit -m "chore: update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
+                git push origin ${GIT_BRANCH}
                 """
             }
         }
