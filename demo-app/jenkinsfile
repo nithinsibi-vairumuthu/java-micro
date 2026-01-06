@@ -74,20 +74,23 @@ pipeline {
             }
         }
 
-        stage('Update Manifest for Argo CD') {
-            steps {
-                sh """
-                sed -i 's|image: nithinsibi/demo-app:.*|image: nithinsibi/demo-app:${IMAGE_TAG}|g' \
-                demo-app/k8s/demoapp-deployment.yml
+    stage('Update Manifest for Argo CD') {
+    steps {
+        sh """
+        sed -i 's|image:.*nithinsibi/demo-app.*|image: nithinsibi/demo-app:${IMAGE_TAG}|g' \
+        demo-app/k8s/demoapp-deployment.yml
 
-                git config user.email "jenkins@ci.com"
-                git config user.name "jenkins"
+        echo "🔍 Updated image line:"
+        grep image: demo-app/k8s/demoapp-deployment.yml
 
-                git add demo-app/k8s/demoapp-deployment.yml
-                git commit -m "chore: update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
-                git push origin ${GIT_BRANCH}
-                """
-            }
-        }
+        git config user.email "jenkins@ci.com"
+        git config user.name "jenkins"
+
+        git add demo-app/k8s/demoapp-deployment.yml
+        git commit -m "chore: update image to ${IMAGE_TAG}" || echo "No changes to commit"
+        git push origin main
+        """
     }
+   } 
+  }
 }
