@@ -6,7 +6,7 @@ pipeline {
     }
 
     environment {
-        DOCKER_IMAGE = "nithinsibi/demo-app"   // Change to your Docker Hub username/repo
+        DOCKER_IMAGE = "nithinsibi/demo-app"
     }
 
     stages {
@@ -52,8 +52,7 @@ pipeline {
                 dir('demo-app') {
                     sh """
                       docker build \
-                      -t $DOCKER_IMAGE:${BUILD_NUMBER} \
-                      -t $DOCKER_IMAGE:${GIT_COMMIT} .
+                      -t $DOCKER_IMAGE:${BUILD_NUMBER} .
                     """
                 }
             }
@@ -69,33 +68,26 @@ pipeline {
                     sh """
                       echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
                       docker push $DOCKER_IMAGE:${BUILD_NUMBER}
-                      docker push $DOCKER_IMAGE:${GIT_COMMIT}
                       docker logout
                     """
                 }
             }
         }
-stage('Deploy to Kubernetes') {
-    steps {
-        dir('demo-app/k8s') {
-            withCredentials([usernamePassword(
-                credentialsId: 'docker-cred',
-                usernameVariable: 'DOCKER_USER',
-                passwordVariable: 'DOCKER_PASS'
-            )]) {
+
+        stage('Update Manifest for Argo CD') {
+            steps {
                 sh """
-                  # Replace BUILD_TAG placeholder with actual build number
-                  sed -i "s/BUILD_TAG/${BUILD_NUMBER}/g" demoapp-deployment.yml
-                  
-                  # Apply deployment to K8s
-                  kubectl apply -f demoapp-deployment.yml
-                  
-                  # Optional: rollout status check
-                  kubectl rollout status deployment/demo-app -n demo-app-ns
+                  sed -i "s|image: nithinsibi/demo-app:.*|image: nithinsibi/demo-app:${BUILD_NUMBER}|g" \
+                  demo-app/k8s/demoapp-deployment.yml
+
+                  git config user.email "jenkins@ci.com"
+                  git config user.name "jenkins"
+
+                  git add demo-app/k8s/demoapp-deployment.yml
+                  git commit -m "Update image to ${BUILD_NUMBER}"
+                  git push origin main
                 """
-                }
             }
         }
-    } 
-  } 
+    }
 }
